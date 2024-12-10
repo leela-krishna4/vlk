@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loop Visualization Studio</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Recharts (via CDN) -->
+    <script src="https://unpkg.com/recharts@2.5.0/umd/Recharts.js"></script>
+    
+    <!-- Framer Motion -->
+    <script src="https://cdn.jsdelivr.net/npm/framer-motion@10.12.16/dist/framer-motion.browser.min.js"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide-icons@0.290.0/dist/umd/lucide.min.js"></script>
+</head>
+<body class="bg-gradient-to-br from-purple-100 to-blue-100 min-h-screen">
+    <div id="app" class="container mx-auto p-6"></div>
+
+    <script>
+        // Configuration and Types
+        const LOOP_DESCRIPTIONS = {
+            'for': {
+                description: 'Iterates a specific number of times with precise control over initialization, condition, and increment',
+                icon: 'activity'
+            },
+            'while': {
+                description: 'Continues executing as long as a condition remains true, offering flexible loop control',
+                icon: 'layers'
+            },
+            'do-while': {
+                description: 'Guarantees at least one execution before checking the continuation condition',
+                icon: 'zap'
+            }
+        };
+
+        // Main Application Class
+        class LoopVisualizer {
+            constructor(rootElement) {
+                this.rootElement = rootElement;
+                this.state = {
+                    loopType: 'for',
+                    loopConfig: {
+                        type: 'for',
+                        start: 0,
+                        end: 10,
+                        condition: 'i < end',
+                        increment: 'i++',
+                        body: 'console.log(i * 2)'
+                    },
+                    currentIteration: 0,
+                    isRunning: false,
+                    iterations: [],
+                    error: null,
+                    speed: 500,
+                    visualizationMode: 'graph'
+                };
+
+                this.init();
+            }
+
+            init() {
+                this.render();
+                this.attachEventListeners();
+            }
+
+            runLoop() {
+                try {
+                    const newIterations = [];
+                    let i = this.state.loopConfig.start;
+                    const endValue = this.state.loopConfig.end;
+
+                    const conditionFn = new Function('i', 'end', `return ${this.state.loopConfig.condition}`);
+                    const incrementFn = new Function('i', `return ${this.state.loopConfig.increment}`);
+
+                    let iterationCount = 0;
+                    while (conditionFn(i, endValue) && iterationCount < 50) {
+                        newIterations.push({ value: i, index: iterationCount });
+                        i = incrementFn(i);
+                        iterationCount++;
+                    }
+
+                    this.setState({
+                        iterations: newIterations,
+                        error: null
+                    });
+                } catch (err) {
+                    this.setState({
+                        error: 'Invalid loop configuration. Check your syntax.'
+                    });
+                    console.error(err);
+                }
+            }
+
+            setState(newState) {
+                this.state = { ...this.state, ...newState };
+                this.render();
+            }
+
+            render() {
+                const { loopType, loopConfig, iterations, visualizationMode, currentIteration } = this.state;
+                
+                this.rootElement.innerHTML = `
+                    <h1 class="text-4xl font-bold text-center mb-8 text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-blue-600">
+                        Loop Visualization Studio
+                    </h1>
+
+                    <!-- Loop Type Selection -->
+                    <div class="grid grid-cols-3 gap-4 mb-6">
+                        ${Object.entries(LOOP_DESCRIPTIONS).map(([type, { description, icon }]) => `
+                            <div 
+                                data-loop-type="${type}"
+                                class="p-4 rounded-lg shadow-md cursor-pointer transition-all ${loopType === type ? 'bg-purple-500 text-white' : 'bg-white hover:bg-purple-100'}">
+                                <div class="flex items-center mb-2">
+                                    <i data-lucide="${icon}" class="mr-2"></i>
+                                    <h2 class="font-bold capitalize">${type} Loop</h2>
+                                </div>
+                                <p class="text-sm">${description}</p>
+                            </div>
+                        `).join('')}
+                    </div>
+
+                    <!-- Loop Configuration -->
+                    <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+                        <div class="grid md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Start Value</label>
+                                <input 
+                                    type="number" 
+                                    value="${loopConfig.start}" 
+                                    id="start-input"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                                />
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">End Value</label>
+                                <input 
+                                    type="number" 
+                                    value="${loopConfig.end}" 
+                                    id="end-input"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                                />
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Condition</label>
+                                <input 
+                                    type="text" 
+                                    value="${loopConfig.condition}" 
+                                    id="condition-input"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Visualization Mode Selector -->
+                    <div class="flex justify-center space-x-4 mb-6">
+                        ${[
+                            { mode: 'graph', icon: 'activity' },
+                            { mode: 'flowchart', icon: 'cpu' },
+                            { mode: 'code', icon: 'code' }
+                        ].map(({ mode, icon }) => `
+                            <button 
+                                data-mode="${mode}"
+                                class="p-3 rounded-full ${visualizationMode === mode ? 'bg-purple-500 text-white' : 'bg-white text-gray-600 hover:bg-purple-100'}">
+                                <i data-lucide="${icon}"></i>
+                            </button>
+                        `).join('')}
+                    </div>
+
+                    <!-- Visualization Container -->
+                    <div class="bg-white rounded-lg shadow-lg p-6 mb-6" id="visualization-container">
+                        ${this.renderVisualization()}
+                    </div>
+
+                    <!-- Controls -->
+                    <div class="flex justify-center items-center space-x-6">
+                        <button id="start-btn" class="bg-green-500 text-white p-3 rounded-full hover:bg-green-600">
+                            <i data-lucide="play"></i>
+                        </button>
+                        <button id="pause-btn" class="bg-yellow-500 text-white p-3 rounded-full hover:bg-yellow-600">
+                            <i data-lucide="pause"></i>
+                        </button>
+                        <button id="reset-btn" class="bg-red-500 text-white p-3 rounded-full hover:bg-red-600">
+                            <i data-lucide="refresh-cw"></i>
+                        </button>
+                    </div>
+
+                    <!-- Error Display -->
+                    ${this.state.error ? `
+                        <div class="fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-500 text-white p-4 rounded-lg shadow-lg">
+                            ${this.state.error}
+                        </div>
+                    ` : ''}
+                `;
+
+                // Render Lucide icons
+                lucide.createIcons();
+            }
+
+            renderVisualization() {
+                const { iterations, visualizationMode, currentIteration } = this.state;
+
+                switch (visualizationMode) {
+                    case 'graph':
+                        return `
+                            <div id="chart" style="width: 100%; height: 300px;">
+                                <!-- Recharts will render here -->
+                            </div>
+                        `;
+                    case 'flowchart':
+                        return `
+                            <div class="grid grid-cols-5 gap-2 p-4">
+                                ${iterations.map((iteration, index) => `
+                                    <div class="p-2 rounded-lg text-center ${index === currentIteration ? 'bg-purple-200' : 'bg-gray-200'}">
+                                        Iteration ${index}: ${iteration.value}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `;
+                    case 'code':
+                        return `
+                            <pre class="bg-gray-900 text-green-400 p-4 rounded-lg overflow-auto">
+                                ${this.generateCodeSample()}
+                            </pre>
+                        `;
+                }
+            }
+
+            generateCodeSample() {
+                const { loopConfig } = this.state;
+                return `
+function loopExample() {
+  for (let i = ${loopConfig.start}; ${loopConfig.condition}; ${loopConfig.increment}) {
+    ${loopConfig.body}
+  }
+}`;
+            }
+
+            attachEventListeners() {
+                // Loop Type Selection
+                this.rootElement.querySelectorAll('[data-loop-type]').forEach(el => {
+                    el.addEventListener('click', () => {
+                        this.setState({ 
+                            loopType: el.getAttribute('data-loop-type'),
+                            loopConfig: { ...this.state.loopConfig, type: el.getAttribute('data-loop-type') }
+                        });
+                    });
+                });
+
+                // Input Event Listeners
+                document.getElementById('start-input').addEventListener('change', (e) => {
+                    this.setState({ 
+                        loopConfig: { 
+                            ...this.state.loopConfig, 
+                            start: Number(e.target.value) 
+                        }
+                    });
+                });
+
+                document.getElementById('end-input').addEventListener('change', (e) => {
+                    this.setState({ 
+                        loopConfig: { 
+                            ...this.state.loopConfig, 
+                            end: Number(e.target.value) 
+                        }
+                    });
+                });
+
+                document.getElementById('condition-input').addEventListener('change', (e) => {
+                    this.setState({ 
+                        loopConfig: { 
+                            ...this.state.loopConfig, 
+                            condition: e.target.value 
+                        }
+                    });
+                });
+
+                // Visualization Mode Selector
+                this.rootElement.querySelectorAll('[data-mode]').forEach(el => {
+                    el.addEventListener('click', () => {
+                        this.setState({ 
+                            visualizationMode: el.getAttribute('data-mode')
+                        }, () => {
+                            if (this.state.visualizationMode === 'graph') {
+                                this.renderRechartsGraph();
+                            }
+                        });
+                    });
+                });
+
+                // Control Buttons
+                document.getElementById('start-btn').addEventListener('click', () => {
+                    this.runLoop();
+                    this.setState({ 
+                        isRunning: true,
+                        currentIteration: 0
+                    });
+                });
+
+                document.getElementById('pause-btn').addEventListener('click', () => {
+                    this.setState({ isRunning: false });
+                });
+
+                document.getElementById('reset-btn').addEventListener('click', () => {
+                    this.setState({ 
+                        isRunning: false,
+                        currentIteration: 0,
+                        iterations: []
+                    });
+                });
+            }
+
+            renderRechartsGraph() {
+                if (this.state.iterations.length > 0) {
+                    const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } = Recharts;
+                    
+                    const chart = React.createElement(
+                        ResponsiveContainer,
+                        { width: '100%', height: 300 },
+                        React.createElement(
+                            LineChart,
+                            { data: this.state.iterations },
+                            React.createElement(CartesianGrid, { strokeDasharray: "3 3" }),
+                            React.createElement(XAxis, { dataKey: 'index' }),
+                            React.createElement(YAxis),
+                            React.createElement(Tooltip),
+                            React.createElement(
+                                Line, 
+                                { 
+                                    type: 'monotone', 
+                                    dataKey: 'value', 
+                                    stroke: '#8884d8', 
+                                    strokeWidth: 3,
+                                    activeDot: { r: 8 }
+                                }
+                            )
+                        )
+                    );
+
+                    ReactDOM.render(chart, document.getElementById('chart'));
+                }
+            }
+        }
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', () => {
+            const app = new LoopVisualizer(document.getElementById('app'));
+        });
+    </script>
+</body>
+</html>
